@@ -108,35 +108,12 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let dispatcher = quote! {
-        fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> Result<(), String> {
-            match topic {
-                #(#deserialize_switch)*
-            }
-            Ok(())
-        }
-    };
-
-    let start_function = quote! {
-        pub fn start(&self, port: u16) -> Result<(), String> {
-            let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port)).map_err(|err| err.to_string())?;
-
-            loop {
-                if let Ok((stream, _addr)) = listener.accept() {
-                    let mut buf_reader = std::io::BufReader::new(stream);
-                    let mut buf = String::with_capacity(32);
-
-                    if std::io::BufRead::read_line(&mut buf_reader, &mut buf).is_err() {
-                        continue;
-                    }
-
-                    if !buf.starts_with("topic: ") {
-                        continue;
-                    }
-
-                    let topic = buf[7..].trim_end();
-
-                    let _ = self.dispatch(topic, &mut buf_reader).inspect_err(|err| println!("{}", err));
+        impl pusu::consumer::Consumer for #struct_name {
+            fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> Result<(), String> {
+                match topic {
+                    #(#deserialize_switch)*
                 }
+                Ok(())
             }
         }
     };
@@ -144,14 +121,12 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #output_struct
 
+        #dispatcher
+
         impl #struct_name {
             #(#consume_methods)*
 
             #(#deserialize_methods)*
-
-            #dispatcher
-
-            #start_function
         }
     };
 
