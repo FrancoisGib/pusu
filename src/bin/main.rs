@@ -1,4 +1,4 @@
-use pusu::{broker, consumer};
+use pusu::{broker::broker, consumer::consumer};
 use serde::Deserialize;
 
 #[broker]

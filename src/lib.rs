@@ -1,7 +1,5 @@
-mod message;
-mod topic;
+#[cfg(feature = "broker")]
+pub mod broker;
 
-pub use broker_macro::broker;
-pub use consumer_macro::consumer;
-pub use message::Message;
-pub use topic::Topic;
+#[cfg(feature = "consumer")]
+pub mod consumer;

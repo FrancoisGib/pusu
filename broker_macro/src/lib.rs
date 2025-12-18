@@ -30,7 +30,7 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
         let ty = &field.ty;
 
         init_fields.push(quote! {
-            #name: pusu::Topic::<#ty>::new(stringify!(#name))
+            #name: pusu::broker::Topic::<#ty>::new(stringify!(#name))
         });
 
         let publish_name =
@@ -45,13 +45,13 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
         });
 
         consume_methods.push(quote! {
-            pub fn #consume_name(&mut self) -> Option<pusu::Message<#ty>> {
+            pub fn #consume_name(&mut self) -> Option<pusu::broker::Message<#ty>> {
                 self.#name.consume()
             }
         });
 
         fields_declaration.push(quote! {
-            #name: pusu::Topic<#ty>
+            #name: pusu::broker::Topic<#ty>
         });
     }
 

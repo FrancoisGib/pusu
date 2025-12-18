@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::message::Message;
+use super::Message;
 
 pub struct Topic<T> {
     pub name: String,
