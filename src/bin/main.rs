@@ -1,14 +1,30 @@
-use pusu::partitionable::Partitionable;
+use pusu::{broker, consumer};
+use serde::Deserialize;
 
-pub struct Test {
-    message: String
+#[broker]
+struct MyBroker {
+    user: User,
+}
+
+#[consumer]
+struct MyConsumer {
+    #[topic("user_handler")]
+    user: User,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct User {
+    username: String,
+    age: u8,
+}
+
+fn user_handler(v: User) {
+    println!(" {:?}", v);
 }
 
 fn main() -> Result<(), String> {
-    let str = "salut les cocos".to_string();
-    let partitions: Vec<_> = str.partition().unwrap().collect();
-    println!("{:?}", partitions);
-    let reconstruct  = String::reconstruct_from_vec(partitions);
-    println!("{}", reconstruct.unwrap());
+    let c = MyConsumer {};
+    c.start(8080)?;
     Ok(())
 }
