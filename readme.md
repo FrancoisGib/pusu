@@ -4,6 +4,7 @@ pusu is a publisher - subscriber event-driven rust crate to send different messa
 
 It is heavily inspired by kafka but will be much lighter.
 The goal of the project is to have a convenient way to configure a cluster of brokers, publishers and subscribers with rust proc macros.
+I wanted to generate all the "topics" in a static way to avoid dynamic traits.
 
 I'm doing this project mostly to learn proc macros and also because I wanted to make my own event-driven architecture.
 
@@ -37,3 +38,5 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 ```
+
+The next things that will be implemented are the brokers, which will be sending the messages from their queues to the subscribers, and after that the producers will also be implemented.
