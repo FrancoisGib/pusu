@@ -8,7 +8,7 @@ I wanted to generate all the "topics" in a static way to avoid dynamic traits.
 
 I'm doing this project mostly to learn proc macros and also because I wanted to make my own event-driven architecture.
 
-For now, the consumers can receive messages from different topics, and serde deserialize it, the error handling is bad for now but it will be improved. 
+For now, producers can send messages to registered consumers, the initialization methods, will be improved in the future.
 
 [Example](src/bin/main.rs)
 ```rs
@@ -31,13 +31,13 @@ struct MyConsumer {
     state: Arc<Mutex<AppState>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct User {
     username: String,
     age: u8,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Book {
     name: String,
     author: String,
@@ -57,13 +57,37 @@ fn count_handler(state: Arc<Mutex<AppState>>) {
     println!("count: {}", lock.counter);
 }
 
-fn main() -> Result<()> {
+#[producer]
+struct MyProducer {
+    user: User,
+
+    book: Book,
+
+    count: (),
+}
+
+fn main() -> Result<()> {   
     let c = MyConsumer {
         state: Arc::new(Mutex::new(AppState { counter: 0 })),
     };
     c.run(8080)?;
+
+    let mut producer = MyProducer::new();
+    let id = 1;
+    let addr = "localhost:8080";
+
+    producer.user.add_receiver(id, addr);
+    producer.book.add_receiver(id, addr);
+    producer.count.add_receiver(id, addr);
+
+    producer.produce_user(User { username: "Username".to_string(), age: 25 })?;
+    producer.produce_book(Book { name: "Dune".to_string(), author: "Frank Herbert".to_string() })?;
+    producer.produce_count()?;
+
     Ok(())
 }
 ```
 
-The next things that will be implemented are the brokers, which will be sending the messages from their queues to the subscribers, and after that the producers will also be implemented.
+The next things that will be implemented are the brokers, for now producers sends directly to consumers, in the future they will be able to do both, depending if you want replication and fault tolerance.
+
+Another feature will be configuration in yaml or toml format to register automatically the instances of the receivers.

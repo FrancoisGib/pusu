@@ -1,37 +1,34 @@
+use std::{io::Read, net::TcpStream};
+
 use anyhow::Result;
 pub use consumer_macro::consumer;
 
 pub trait Consumer {
     fn run(&self, port: u16) -> Result<()> {
-        const TOPIC_BUFFER_CAPACITY: usize = 32;
-
         let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port))?;
 
         loop {
             if let Ok((stream, _addr)) = listener.accept() {
-                let mut buf_reader = std::io::BufReader::new(stream);
-                let mut buf = String::with_capacity(TOPIC_BUFFER_CAPACITY);
-
-                if std::io::BufRead::read_line(&mut buf_reader, &mut buf).is_err() {
-                    continue;
-                }
-
-                if !buf.starts_with("topic: ") {
-                    continue;
-                }
-
-                let topic = buf[7..].trim_end();
-
-                let _ = self
-                    .dispatch(topic, &mut buf_reader)
-                    .inspect_err(|err| eprintln!("{}", err));
+                let _ = self.accept(stream).inspect_err(|err| eprintln!("{}", err));
             }
         }
     }
 
-    fn dispatch(
-        &self,
-        topic: &str,
-        stream: &mut std::io::BufReader<std::net::TcpStream>,
-    ) -> anyhow::Result<()>;
+    fn accept(&self, stream: TcpStream) -> Result<()> {
+        let mut buf_reader = std::io::BufReader::new(stream);
+        let mut buf = Vec::new();
+
+        buf_reader.read_to_end(&mut buf)?;
+        let topic_len = u16::from_be_bytes(buf[..2].try_into()?) as usize;
+        let topic = str::from_utf8(&buf[2..2 + topic_len])?;
+
+        let payload_start = 2 + topic_len;
+        let payload_len =
+            u32::from_be_bytes(buf[payload_start..payload_start + 4].try_into()?) as usize;
+        let payload_bytes = &buf[payload_start + 4..payload_start + 4 + payload_len];
+
+        self.dispatch(topic, payload_bytes)
+    }
+
+    fn dispatch(&self, topic: &str, stream: &[u8]) -> anyhow::Result<()>;
 }

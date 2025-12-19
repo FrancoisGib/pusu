@@ -16,7 +16,6 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let mut consume_methods = Vec::new();
-    let mut deserialize_methods = Vec::new();
     let mut cleaned_fields = syn::punctuated::Punctuated::new();
     let mut deserialize_switch = Vec::new();
 
@@ -30,7 +29,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if let syn::Meta::List(meta) = &attr.meta {
                     if let Ok(lit) = syn::parse2::<syn::LitStr>(meta.tokens.clone()) {
                         handler_ident =
-                            Some((syn::Ident::new(&lit.value(), lit.span()), field.ty.clone()));
+                            Some((syn::Ident::new(&lit.value(), lit.span()), &field.ty));
                     }
                 }
             }
@@ -77,22 +76,8 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let lit_value = lit.value();
 
             let switch_stmt = if !is_unit_type {
-                let deserializer_name = syn::Ident::new(&format!("deserialize_{}", name), name.span());
-                deserialize_methods.push(quote! {
-                    #[inline]
-                    fn #deserializer_name<'de, D>(&self, de: D) -> anyhow::Result<#ty>
-                    where
-                        D: serde::Deserializer<'de> + Send,
-                        #ty: serde::Deserialize<'de>,
-                    {
-                        let v = #ty::deserialize(de).map_err(|e| anyhow::anyhow!(e.to_string()))?;
-                        Ok(v)
-                    }
-                });
-
                 quote! { 
-                    let value = self.#deserializer_name(&mut de)?;
-                    self.#consume_name(value);
+                    self.#consume_name(postcard::from_bytes(payload_bytes)?);
                 }
             } else {
                 quote! { self.#consume_name(); }
@@ -130,8 +115,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let dispatcher = quote! {
         impl pusu::consumer::Consumer for #struct_name {
-            fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> anyhow::Result<()> {
-                let mut de = serde_json::Deserializer::from_reader(stream);
+            fn dispatch(&self, topic: &str, payload_bytes: &[u8]) -> anyhow::Result<()> {
                 match topic {
                     #(#deserialize_switch)*
                 }
@@ -147,8 +131,6 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #struct_name {
             #(#consume_methods)*
-
-            #(#deserialize_methods)*
         }
     };
 

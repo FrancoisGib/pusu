@@ -1,16 +1,15 @@
-use std::sync::{Arc, Mutex};
-
-use anyhow::{Result};
-use pusu::{
-    broker::broker,
-    consumer::{Consumer, consumer},
+use std::{
+    sync::{Arc, Mutex},
+    thread::{self, sleep},
+    time::Duration,
 };
-use serde::Deserialize;
 
-#[broker]
-struct MyBroker {
-    user: User,
-}
+use anyhow::Result;
+use pusu::{
+    consumer::{Consumer, consumer},
+    producer::producer,
+};
+use serde::{Deserialize, Serialize};
 
 struct AppState {
     counter: u64,
@@ -31,13 +30,13 @@ struct MyConsumer {
     state: Arc<Mutex<AppState>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct User {
     username: String,
     age: u8,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Book {
     name: String,
     author: String,
@@ -57,10 +56,43 @@ fn count_handler(state: Arc<Mutex<AppState>>) {
     println!("count: {}", lock.counter);
 }
 
+#[producer]
+struct MyProducer {
+    user: User,
+
+    book: Book,
+
+    count: (),
+}
+
 fn main() -> Result<()> {
-    let c = MyConsumer {
-        state: Arc::new(Mutex::new(AppState { counter: 0 })),
-    };
-    c.run(8080)?;
+    let handle = thread::spawn(|| {
+        let c = MyConsumer {
+            state: Arc::new(Mutex::new(AppState { counter: 0 })),
+        };
+        c.run(8080).unwrap();
+    });
+
+    sleep(Duration::from_millis(100));
+
+    let mut producer = MyProducer::new();
+    let id = 1;
+    let addr = "localhost:8080";
+
+    producer.user.add_receiver(id, addr);
+    producer.book.add_receiver(id, addr);
+    producer.count.add_receiver(id, addr);
+
+    producer.produce_user(User {
+        username: "Username".to_string(),
+        age: 25,
+    })?;
+    producer.produce_book(Book {
+        name: "Dune".to_string(),
+        author: "Frank Herbert".to_string(),
+    })?;
+    producer.produce_count()?;
+
+    handle.join().unwrap();
     Ok(())
 }

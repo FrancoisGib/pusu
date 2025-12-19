@@ -22,8 +22,6 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut fields_declaration = vec![];
     let mut init_fields = vec![];
-    // let mut publish_methods = vec![];
-    // let mut consume_methods = vec![];
 
     for field in fields.iter() {
         let name = &field.ident;
@@ -32,23 +30,6 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
         init_fields.push(quote! {
             #name: pusu::broker::Topic::<#ty>::new(stringify!(#name))
         });
-
-        // let publish_name =
-        //     syn::Ident::new(&format!("publish_{}", name.as_ref().unwrap()), name.span());
-        // let consume_name =
-        //     syn::Ident::new(&format!("consume_{}", name.as_ref().unwrap()), name.span());
-
-        // publish_methods.push(quote! {
-        //     pub fn #publish_name(&mut self, payload: #ty) {
-        //         self.#name.publish(payload);
-        //     }
-        // });
-
-        // consume_methods.push(quote! {
-        //     pub fn #consume_name(&mut self) -> Option<pusu::broker::Message<#ty>> {
-        //         self.#name.consume()
-        //     }
-        // });
 
         fields_declaration.push(quote! {
             #name: pusu::broker::Topic<#ty>
@@ -66,9 +47,6 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
                     #(#init_fields),*
                 }
             }
-
-            // #(#publish_methods)*
-            // #(#consume_methods)*
         }
     };
 
