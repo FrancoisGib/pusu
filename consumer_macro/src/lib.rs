@@ -1,8 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::parse_macro_input;
+use quote::{quote};
+use syn::{Type, TypeTuple, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -46,48 +46,63 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         if let Some((handler, ty)) = handler_ident {
             let consume_name = syn::Ident::new(&format!("consume_{}", name), name.span());
+            
+            let is_unit_type = is_unit(&ty);
+
+            let params = if is_unit_type {
+                quote! { &self }
+            } else {
+                quote! { &self, value: #ty }
+            };
+
+            let call = match state_ident {
+                Some(state) => if !is_unit_type {
+                        quote! { self.#state.clone(), value }
+                } else {
+                    quote! { self.#state.clone() }
+                },
+                None => quote! { value },
+            };
+            
             let method = {
-                match state_ident {
-                    Some(state) => {
-                        quote! {
-                            #[inline]
-                            fn #consume_name(&self, value: #ty) {
-                                #handler(self.#state.clone(), value);
-                            }
-                        }
+                quote! {
+                    #[inline]
+                    fn #consume_name(#params) {
+                        #handler(#call);
                     }
-                    None => quote! {
-                        #[inline]
-                        fn #consume_name(&self, value: #ty) {
-                            println!("ic");
-                            #handler(value);
-                        }
-                    },
                 }
             };
 
-            let deserializer_name = syn::Ident::new(&format!("deserialize_{}", name), name.span());
-            deserialize_methods.push(quote! {
-                #[inline]
-                fn #deserializer_name<'de, D>(&self, de: D) -> Result<#ty, String>
-                where
-                    D: serde::Deserializer<'de>,
-                    #ty: serde::Deserialize<'de>,
-                {
-                    #ty::deserialize(de).map_err(|err| err.to_string())
-                }
-            });
-
-            let lit = syn::LitStr::new(&format!("{}", name), name.span());
+            let lit = syn::LitStr::new(&name.to_string(), name.span());
             let lit_value = lit.value();
 
-            deserialize_switch.push(quote! {
-                #lit_value => {
+            let switch_stmt = if !is_unit_type {
+                let deserializer_name = syn::Ident::new(&format!("deserialize_{}", name), name.span());
+                deserialize_methods.push(quote! {
+                    #[inline]
+                    fn #deserializer_name<'de, D>(&self, de: D) -> anyhow::Result<#ty>
+                    where
+                        D: serde::Deserializer<'de> + Send,
+                        #ty: serde::Deserialize<'de>,
+                    {
+                        let v = #ty::deserialize(de).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+                        Ok(v)
+                    }
+                });
+
+                quote! { 
                     let value = self.#deserializer_name(&mut de)?;
                     self.#consume_name(value);
-                },
+                }
+            } else {
+                quote! { self.#consume_name(); }
+            };
+            
+            deserialize_switch.push(quote! {
+                #lit_value => {
+                    #switch_stmt
+                }
             });
-
             consume_methods.push(method);
         }
 
@@ -110,12 +125,12 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     deserialize_switch.push(quote! {
-        _ => return Err("Topic not found".to_string()),
+        _ => anyhow::bail!("Topic not found"),
     });
 
     let dispatcher = quote! {
         impl pusu::consumer::Consumer for #struct_name {
-            fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> Result<(), String> {
+            fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> anyhow::Result<()> {
                 let mut de = serde_json::Deserializer::from_reader(stream);
                 match topic {
                     #(#deserialize_switch)*
@@ -138,4 +153,11 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn is_unit(ty: &Type) -> bool {
+    match ty {
+        Type::Tuple(TypeTuple { elems, .. }) => elems.is_empty(),
+        _ => false,
+    }
 }

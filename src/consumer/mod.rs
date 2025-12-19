@@ -1,11 +1,11 @@
+use anyhow::Result;
 pub use consumer_macro::consumer;
 
 pub trait Consumer {
-    fn start(&self, port: u16) -> Result<(), String> {
+    fn start(&self, port: u16) -> Result<()> {
         const TOPIC_BUFFER_CAPACITY: usize = 32;
 
-        let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port))
-            .map_err(|err| err.to_string())?;
+        let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port))?;
 
         loop {
             if let Ok((stream, _addr)) = listener.accept() {
@@ -24,7 +24,7 @@ pub trait Consumer {
 
                 let _ = self
                     .dispatch(topic, &mut buf_reader)
-                    .inspect_err(|err| println!("{}", err));
+                    .inspect_err(|err| eprintln!("{}", err));
             }
         }
     }
@@ -33,5 +33,5 @@ pub trait Consumer {
         &self,
         topic: &str,
         stream: &mut std::io::BufReader<std::net::TcpStream>,
-    ) -> Result<(), String>;
+    ) -> anyhow::Result<()>;
 }

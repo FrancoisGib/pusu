@@ -10,16 +10,25 @@ I'm doing this project mostly to learn proc macros and also because I wanted to 
 
 For now, the consumers can receive messages from different topics, and serde deserialize it, the error handling is bad for now but it will be improved. 
 
+[Example](src/bin/main.rs)
 ```rs
-#[broker]
-struct MyBroker {
-    user: User,
+struct AppState {
+    counter: u64,
 }
 
 #[consumer]
 struct MyConsumer {
     #[topic("user_handler")]
     user: User,
+
+    #[topic("book_handler")]
+    book: Book,
+
+    #[state("state")]
+    #[topic("count_handler")]
+    count: (),
+
+    state: Arc<Mutex<AppState>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,12 +37,30 @@ struct User {
     age: u8,
 }
 
+#[derive(Debug, Deserialize)]
+struct Book {
+    name: String,
+    author: String,
+}
+
 fn user_handler(v: User) {
-    println!(" {:?}", v);
+    println!("user: {}, {}", v.username, v.age);
+}
+
+fn book_handler(v: Book) {
+    println!("book: {}, {}", v.name, v.author);
+}
+
+fn count_handler(state: Arc<Mutex<AppState>>) {
+    let mut lock = state.lock().unwrap();
+    lock.counter += 1;
+    println!("count: {}", lock.counter);
 }
 
 fn main() -> Result<(), String> {
-    let c = MyConsumer {};
+    let c = MyConsumer {
+        state: Arc::new(Mutex::new(AppState { counter: 0 })),
+    };
     c.start(8080)?;
     Ok(())
 }
