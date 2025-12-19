@@ -50,13 +50,16 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 match state_ident {
                     Some(state) => {
                         quote! {
+                            #[inline]
                             fn #consume_name(&self, value: #ty) {
-                                #handler(#state, value);
+                                #handler(self.#state.clone(), value);
                             }
                         }
                     }
                     None => quote! {
+                        #[inline]
                         fn #consume_name(&self, value: #ty) {
+                            println!("ic");
                             #handler(value);
                         }
                     },
@@ -65,10 +68,13 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             let deserializer_name = syn::Ident::new(&format!("deserialize_{}", name), name.span());
             deserialize_methods.push(quote! {
-                fn #deserializer_name(&self, stream: &mut std::io::BufReader<std::net::TcpStream>) -> Result<#ty, String> {
-                    let mut de = serde_json::Deserializer::from_reader(stream);
-                    let value = #ty::deserialize(&mut de).map_err(|err| err.to_string())?;
-                    Ok(value)
+                #[inline]
+                fn #deserializer_name<'de, D>(&self, de: D) -> Result<#ty, String>
+                where
+                    D: serde::Deserializer<'de>,
+                    #ty: serde::Deserialize<'de>,
+                {
+                    #ty::deserialize(de).map_err(|err| err.to_string())
                 }
             });
 
@@ -77,7 +83,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             deserialize_switch.push(quote! {
                 #lit_value => {
-                    let value = self.#deserializer_name(stream)?;
+                    let value = self.#deserializer_name(&mut de)?;
                     self.#consume_name(value);
                 },
             });
@@ -110,6 +116,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let dispatcher = quote! {
         impl pusu::consumer::Consumer for #struct_name {
             fn dispatch(&self, topic: &str, stream: &mut std::io::BufReader<std::net::TcpStream>) -> Result<(), String> {
+                let mut de = serde_json::Deserializer::from_reader(stream);
                 match topic {
                     #(#deserialize_switch)*
                 }
