@@ -77,8 +77,10 @@ fn main() -> Result<()> {
     let addr = "localhost:8080";
 
     producer.user.add_receiver(id, addr);
-    producer.book.add_receiver(id, addr);
-    producer.count.add_receiver(id, addr);
+    // or
+    producer.add_receiver("book", id, addr);
+    producer.add_receiver("count", id, addr);
+    
 
     producer.produce_user(User { username: "Username".to_string(), age: 25 })?;
     producer.produce_book(Book { name: "Dune".to_string(), author: "Frank Herbert".to_string() })?;
@@ -89,3 +91,5 @@ fn main() -> Result<()> {
 ```
 
 The next things that will be implemented are the brokers, for now producers sends directly to consumers, in the future they will be able to do both, depending if you want replication and fault tolerance.
+
+Configuration with yaml or toml format will be available in the future to not have to add receivers by hand.

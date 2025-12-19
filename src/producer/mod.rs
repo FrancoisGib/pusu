@@ -6,7 +6,7 @@ use serde::Serialize;
 
 pub use producer_macro::producer;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum BrokerStatus {
     AVAILABLE,
     FAILED,
@@ -17,6 +17,17 @@ pub struct Receiver<T> {
     addr: String,
     status: BrokerStatus,
     _phantom: PhantomData<T>,
+}
+
+impl<T> Clone for Receiver<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            addr: self.addr.clone(),
+            status: self.status,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T: Serialize> Receiver<T> {
@@ -60,6 +71,10 @@ impl<T> Default for Receivers<T> {
             receivers: Default::default(),
         }
     }
+}
+
+pub trait ReceiverDispatch {
+    fn add_receiver(&mut self, topic: &str, id: usize, addr: &str) -> Result<()>;
 }
 
 impl<T> Receivers<T> {
