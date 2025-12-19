@@ -89,5 +89,3 @@ fn main() -> Result<()> {
 ```
 
 The next things that will be implemented are the brokers, for now producers sends directly to consumers, in the future they will be able to do both, depending if you want replication and fault tolerance.
-
-Another feature will be configuration in yaml or toml format to register automatically the instances of the receivers.
