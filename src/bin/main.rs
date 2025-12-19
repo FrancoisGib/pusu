@@ -61,6 +61,6 @@ fn main() -> Result<()> {
     let c = MyConsumer {
         state: Arc::new(Mutex::new(AppState { counter: 0 })),
     };
-    c.start(8080)?;
+    c.run(8080)?;
     Ok(())
 }

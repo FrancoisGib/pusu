@@ -2,7 +2,7 @@ use anyhow::Result;
 pub use consumer_macro::consumer;
 
 pub trait Consumer {
-    fn start(&self, port: u16) -> Result<()> {
+    fn run(&self, port: u16) -> Result<()> {
         const TOPIC_BUFFER_CAPACITY: usize = 32;
 
         let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port))?;

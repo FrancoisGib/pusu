@@ -57,11 +57,11 @@ fn count_handler(state: Arc<Mutex<AppState>>) {
     println!("count: {}", lock.counter);
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<()> {
     let c = MyConsumer {
         state: Arc::new(Mutex::new(AppState { counter: 0 })),
     };
-    c.start(8080)?;
+    c.run(8080)?;
     Ok(())
 }
 ```
