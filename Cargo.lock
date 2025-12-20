@@ -127,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "pusu"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "postcard",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "pusu_broker_macro"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "pusu_consumer_macro"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "pusu_producer_macro"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "convert_case",
  "proc-macro2",

@@ -1,6 +1,6 @@
 [package]
 name = "pusu_producer_macro"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 description = "High-performance, fully static, event-driven architecture for Rust services"
 license = "MIT"
