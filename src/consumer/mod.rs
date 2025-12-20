@@ -30,9 +30,9 @@ pub trait Consumer: Sync + Send + Sized + 'static {
 
         let self_arc = Arc::new(self);
 
-        for worker_id in 0..nb_workers {
+        for (worker_id, load_counter) in load_counters.iter().enumerate().take(nb_workers) {
             let consumer_clone = self_arc.clone();
-            let (tx, handle) = consumer_clone.worker(worker_id, load_counters[worker_id].clone());
+            let (tx, handle) = consumer_clone.worker(worker_id, load_counter.clone());
             senders.push(tx);
             handles.push(handle);
         }
@@ -69,9 +69,9 @@ pub trait Consumer: Sync + Send + Sized + 'static {
         });
 
         let mut signals = Signals::new([SIGINT])?;
-        for _ in signals.forever() {
+
+        if signals.forever().next().is_some() {
             running.swap(false, Ordering::Relaxed);
-            break;
         }
 
         signals.handle().close();
