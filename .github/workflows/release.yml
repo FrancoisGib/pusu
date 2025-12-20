@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+
+      - name: Config git
+        run: |
+          git config --local user.email "github-runner@github.com"
+          git config --local user.name "Github Runner"
+          git remote set-url origin https://FrancoisGib:${{ secrets.GITHUB_TOKEN }}@github.com/FrancoisGib/pusu.git
+          git config set advice.addIgnoredFile false
+
+      - name: Bump version and get tag
+        id: version
+        run: |
+          cargo set-version --bump patch
+          TAG_NAME=$(cargo pkgid | sed 's/.*#//')
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Commit and push
+        run: |
+          git add Cargo.toml Cargo.lock
+          git commit -m "Release version ${{ steps.version.outputs.tag }}"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push --tags origin main
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          release_name: Release ${{ steps.version.outputs.tag }}
+          body: |
+            Release version ${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: false
+
+      - name: Login to crates.io
+        run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
+        
+      - name: Dry run publish
+        run: cargo publish --dry-run
+      
+      - name: Publish to crates.io
+        run: cargo publish

@@ -2,6 +2,8 @@
 name = "pusu"
 version = "0.1.0"
 edition = "2024"
+description = "High-performance, fully static, event-driven architecture for Rust services"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.100"
