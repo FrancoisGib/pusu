@@ -36,6 +36,15 @@ jobs:
           TAG_NAME=$(cargo pkgid | sed 's/.*#//')
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
 
+      - name: Login to crates.io
+        run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
+
+      - name: Publish to crates.io
+        run: cargo publish --dry-run
+        
+      - name: Publish to crates.io
+        run: cargo publish
+
       - name: Commit and push
         run: |
           git add Cargo.toml Cargo.lock
@@ -54,24 +63,3 @@ jobs:
             Release version ${{ steps.version.outputs.tag }}
           draft: false
           prerelease: false
-
-      - name: Login to crates.io
-        run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
-
-      - name: Publish to crates.io
-        run: cargo publish --dry-run
-        
-      # - name: Publish producer_macro to crates.io
-      #   working-directory: ./producer_macro
-      #   run: cargo publish
-
-      # - name: Publish consumer_macro to crates.io
-      #   working-directory: ./consumer_macro
-      #   run: cargo publish
-
-      # - name: Publish broker_macro to crates.io
-      #   working-directory: ./broker_macro
-      #   run: cargo publish
-      
-      - name: Publish to crates.io
-        run: cargo publish
