@@ -1,7 +1,7 @@
 use std::{io::Read, net::TcpStream};
 
 use anyhow::Result;
-pub use consumer_macro::consumer;
+pub use pusu_consumer_macro::consumer;
 
 pub trait Consumer {
     fn run(&self, port: u16) -> Result<()> {

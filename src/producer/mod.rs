@@ -4,7 +4,7 @@ use std::{io::Write, marker::PhantomData, net::TcpStream};
 use anyhow::{Result, bail};
 use serde::Serialize;
 
-pub use producer_macro::producer;
+pub use pusu_producer_macro::producer;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum BrokerStatus {

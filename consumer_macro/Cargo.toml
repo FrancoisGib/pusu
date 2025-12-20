@@ -1,7 +1,9 @@
 [package]
-name = "consumer_macro"
+name = "pusu_consumer_macro"
 version = "0.1.0"
 edition = "2024"
+description = "High-performance, fully static, event-driven architecture for Rust services"
+license = "MIT"
 
 [lib]
 proc-macro = true
