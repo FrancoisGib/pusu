@@ -36,7 +36,7 @@ jobs:
           git remote set-url origin https://FrancoisGib:${{ secrets.GITHUB_TOKEN }}@github.com/FrancoisGib/pusu.git
 
       - name: Login to crates.io
-        run: cargo login ${{ secrets.CRATES_IO_API_TOKEN }}
+        run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
 
       - name: Bump pusu_broker_macro version
         id: pusu_broker_macro_version
