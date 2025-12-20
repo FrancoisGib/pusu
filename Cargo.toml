@@ -1,15 +1,15 @@
 [package]
 name = "pusu"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 description = "High-performance, fully static, event-driven architecture for Rust services"
 license = "MIT"
 
 [dependencies]
 anyhow = "1.0.100"
-pusu_broker_macro = { version = "0.1.1", path = "macros/pusu_broker_macro" }
-pusu_consumer_macro = { version = "0.1.1", path = "macros/pusu_consumer_macro" }
-pusu_producer_macro = { version = "0.1.1", path = "macros/pusu_producer_macro" }
+pusu_broker_macro = { version = "0.1.4", path = "macros/pusu_broker_macro" }
+pusu_consumer_macro = { version = "0.1.4", path = "macros/pusu_consumer_macro" }
+pusu_producer_macro = { version = "0.1.4", path = "macros/pusu_producer_macro" }
 serde = { version = "1.0", features = ["derive"] }
 postcard = {"version" = "1.1.3", features = ["use-std"]}
 strum = { version = "0.27", features = ["derive"] }
