@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 use pusu::{
     consumer::{Consumer, consumer},
-    producer::producer,
+    producer::{ReceiverDispatch, producer},
 };
 use serde::{Deserialize, Serialize};
 

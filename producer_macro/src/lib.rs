@@ -129,8 +129,8 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let receiver_dispatch_trait = quote! {
-        impl #struct_name {
-            pub fn add_receiver(&mut self, topic: #enum_ident, id: usize, addr: &str) {
+        impl pusu::producer::ReceiverDispatch<#enum_ident> for #struct_name {
+            fn add_receiver(&mut self, topic: #enum_ident, id: usize, addr: &str) {
                 match topic {
                     #(#dispatcher_switches)*
                 }

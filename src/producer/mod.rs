@@ -79,6 +79,10 @@ impl<T> Receivers<T> {
     }
 }
 
+pub trait ReceiverDispatch<T> {
+    fn add_receiver(&mut self, topic: T, id: usize, addr: &str);
+}
+
 impl<T: Serialize> Receivers<T> {
     pub fn send(&mut self, topic: &str, payload: &T) -> Result<()> {
         let len = self.receivers.len();
