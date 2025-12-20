@@ -98,6 +98,9 @@ fn main() -> Result<()> {
 }
 ```
 
-The next things that will be implemented are the brokers, for now producers sends directly to consumers, in the future they will be able to do both, depending if you want replication and fault tolerance.
+## TODO
 
-Configuration with yaml or toml format will be available in the future to not have to add receivers by hand.
+- Fault tolerance and replication on brokers (with abstraction on pub sub sides)
+- Logging for debugging purpose
+- Async runtime with tokio, for now it is an os threads scheduling for projects without tokio
+- Configuration with yaml or toml format to not have to add receivers by hand and configure the runtime.
