@@ -2,8 +2,6 @@ use std::collections::VecDeque;
 
 use super::Message;
 
-pub fn rf() {}
-
 pub struct Topic<T> {
     pub name: String,
     pub queue: VecDeque<Message<T>>,
