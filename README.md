@@ -2,6 +2,11 @@
 
 pusu is a publisher - subscriber event-driven rust crate to send different messages across topics.
 
+[![Build status](https://github.com/FrancoisGib/pusu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FrancoisGib/pusu/actions/workflows/ci.yml)
+[![Release status](https://github.com/FrancoisGib/pusu/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/FrancoisGib/pusu/actions/workflows/release.yml)
+[![Crates.io](https://img.shields.io/crates/v/pusu)](https://crates.io/crates/pusu)
+[![Documentation](https://docs.rs/pusu/badge.svg)](https://docs.rs/pusu/latest)
+
 It is heavily inspired by kafka but will be much lighter.
 The goal of the project is to have a convenient way to configure a cluster of brokers, publishers and subscribers with rust proc macros.
 I wanted to generate all the "topics" in a static way to avoid dynamic traits.
@@ -93,6 +98,9 @@ fn main() -> Result<()> {
 }
 ```
 
-The next things that will be implemented are the brokers, for now producers sends directly to consumers, in the future they will be able to do both, depending if you want replication and fault tolerance.
+## TODO
 
-Configuration with yaml or toml format will be available in the future to not have to add receivers by hand.
+- Fault tolerance and replication on brokers (with abstraction on pub sub sides)
+- Logging for debugging purpose
+- Async runtime with tokio, for now it is an os threads scheduling for projects without tokio
+- Configuration with yaml or toml format to not have to add receivers by hand and configure the runtime.

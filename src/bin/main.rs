@@ -83,15 +83,17 @@ fn main() -> Result<()> {
     producer.add_receiver(MyProducerTopic::Book, id, addr);
     producer.add_receiver(MyProducerTopic::Count, id, addr);
 
-    producer.produce_user(User {
-        username: "Username".to_string(),
-        age: 25,
-    })?;
-    producer.produce_book(Book {
-        name: "Dune".to_string(),
-        author: "Frank Herbert".to_string(),
-    })?;
-    producer.produce_count()?;
+    for _ in 0..1000 {
+        producer.produce_user(User {
+            username: "Username".to_string(),
+            age: 25,
+        })?;
+        producer.produce_book(Book {
+            name: "Dune".to_string(),
+            author: "Frank Herbert".to_string(),
+        })?;
+        producer.produce_count()?;
+    }
 
     handle.join().unwrap();
     Ok(())
