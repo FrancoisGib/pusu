@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 use pusu::{
     consumer::{Consumer, consumer},
-    producer::{ReceiverDispatch, producer},
+    producer::producer,
 };
 use serde::{Deserialize, Serialize};
 
@@ -79,9 +79,9 @@ fn main() -> Result<()> {
     let id = 1;
     let addr = "localhost:8080";
 
-    producer.add_receiver("user", id, addr)?;
-    producer.add_receiver("book", id, addr)?;
-    producer.add_receiver("count", id, addr)?;
+    producer.add_receiver(MyProducerTopic::User, id, addr);
+    producer.add_receiver(MyProducerTopic::Book, id, addr);
+    producer.add_receiver(MyProducerTopic::Count, id, addr);
 
     producer.produce_user(User {
         username: "Username".to_string(),

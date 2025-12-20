@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
@@ -10,8 +10,8 @@ pub fn broker(_attrs: TokenStream, input: TokenStream) -> TokenStream {
 
     let struct_name = &input.ident;
 
-    let fields = if let syn::Data::Struct(data) = &input.data {
-        if let syn::Fields::Named(fields_named) = &data.fields {
+    let fields = if let Data::Struct(data) = &input.data {
+        if let Fields::Named(fields_named) = &data.fields {
             fields_named.named.iter().collect::<Vec<_>>()
         } else {
             panic!("Broker can only be derived for structs with named fields");

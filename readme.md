@@ -76,10 +76,13 @@ fn main() -> Result<()> {
     let id = 1;
     let addr = "localhost:8080";
 
-    producer.user.add_receiver(id, addr);
+    producer.add_receiver(MyProducerTopic::User, id, addr);
+    producer.add_receiver(MyProducerTopic::Book, id, addr);
+    producer.add_receiver(MyProducerTopic::Count, id, addr);
     // or
-    producer.add_receiver("book", id, addr);
-    producer.add_receiver("count", id, addr);
+    producer.user.add_receiver(id, addr);
+    producer.book.add_receiver(id, addr);
+    producer.count.add_receiver(id, addr);
     
 
     producer.produce_user(User { username: "Username".to_string(), age: 25 })?;

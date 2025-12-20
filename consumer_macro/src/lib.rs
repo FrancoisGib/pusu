@@ -1,22 +1,25 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{quote};
-use syn::{Type, TypeTuple, parse_macro_input};
+use quote::quote;
+use syn::{
+    Fields, FieldsNamed, Ident, ItemStruct, LitStr, Meta, Type, TypeTuple, parse_macro_input,
+    parse2, punctuated::Punctuated,
+};
 
 #[proc_macro_attribute]
 pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as syn::ItemStruct);
+    let input = parse_macro_input!(item as ItemStruct);
     let struct_name = &input.ident;
 
-    let fields = if let syn::Fields::Named(f) = &input.fields {
+    let fields = if let Fields::Named(f) = &input.fields {
         &f.named
     } else {
         panic!("Consumer macro only supports named fields");
     };
 
     let mut consume_methods = Vec::new();
-    let mut cleaned_fields = syn::punctuated::Punctuated::new();
+    let mut cleaned_fields = Punctuated::new();
     let mut deserialize_switch = Vec::new();
 
     for field in fields {
@@ -26,26 +29,25 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         for attr in &field.attrs {
             if attr.path().is_ident("topic") {
-                if let syn::Meta::List(meta) = &attr.meta {
-                    if let Ok(lit) = syn::parse2::<syn::LitStr>(meta.tokens.clone()) {
-                        handler_ident =
-                            Some((syn::Ident::new(&lit.value(), lit.span()), &field.ty));
+                if let Meta::List(meta) = &attr.meta {
+                    if let Ok(lit) = parse2::<LitStr>(meta.tokens.clone()) {
+                        handler_ident = Some((Ident::new(&lit.value(), lit.span()), &field.ty));
                     }
                 }
             }
 
             if attr.path().is_ident("state") {
-                if let syn::Meta::List(meta) = &attr.meta {
-                    if let Ok(lit) = syn::parse2::<syn::LitStr>(meta.tokens.clone()) {
-                        state_ident = Some(syn::Ident::new(&lit.value(), lit.span()));
+                if let Meta::List(meta) = &attr.meta {
+                    if let Ok(lit) = parse2::<LitStr>(meta.tokens.clone()) {
+                        state_ident = Some(Ident::new(&lit.value(), lit.span()));
                     }
                 }
             }
         }
 
         if let Some((handler, ty)) = handler_ident {
-            let consume_name = syn::Ident::new(&format!("consume_{}", name), name.span());
-            
+            let consume_name = Ident::new(&format!("consume_{}", name), name.span());
+
             let is_unit_type = is_unit(&ty);
 
             let params = if is_unit_type {
@@ -55,14 +57,16 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             let call = match state_ident {
-                Some(state) => if !is_unit_type {
+                Some(state) => {
+                    if !is_unit_type {
                         quote! { self.#state.clone(), value }
-                } else {
-                    quote! { self.#state.clone() }
-                },
+                    } else {
+                        quote! { self.#state.clone() }
+                    }
+                }
                 None => quote! { value },
             };
-            
+
             let method = {
                 quote! {
                     #[inline]
@@ -72,17 +76,17 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             };
 
-            let lit = syn::LitStr::new(&name.to_string(), name.span());
+            let lit = LitStr::new(&name.to_string(), name.span());
             let lit_value = lit.value();
 
             let switch_stmt = if !is_unit_type {
-                quote! { 
+                quote! {
                     self.#consume_name(postcard::from_bytes(payload_bytes)?);
                 }
             } else {
                 quote! { self.#consume_name(); }
             };
-            
+
             deserialize_switch.push(quote! {
                 #lit_value => {
                     #switch_stmt
@@ -96,13 +100,13 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let output_struct = syn::ItemStruct {
+    let output_struct = ItemStruct {
         attrs: input.attrs,
         vis: input.vis,
         struct_token: input.struct_token,
         ident: input.ident.clone(),
         generics: input.generics,
-        fields: syn::Fields::Named(syn::FieldsNamed {
+        fields: Fields::Named(FieldsNamed {
             brace_token: Default::default(),
             named: cleaned_fields,
         }),

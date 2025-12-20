@@ -73,10 +73,6 @@ impl<T> Default for Receivers<T> {
     }
 }
 
-pub trait ReceiverDispatch {
-    fn add_receiver(&mut self, topic: &str, id: usize, addr: &str) -> Result<()>;
-}
-
 impl<T> Receivers<T> {
     pub fn new() -> Self {
         Self::default()
