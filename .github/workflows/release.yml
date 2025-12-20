@@ -27,9 +27,60 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "github-actions"
           git remote set-url origin https://FrancoisGib:${{ secrets.GITHUB_TOKEN }}@github.com/FrancoisGib/pusu.git
-          git config set advice.addIgnoredFile false
 
-      - name: Bump version and get tag
+      - name: Login to crates.io
+        run: cargo login ${{ secrets.CRATES_IO_API_TOKEN }}
+
+      - name: Bump pusu_broker_macro version
+        id: pusu_broker_macro_version
+        working-directory: ./macros/pusu_broker_macro
+        run: |
+          cargo set-version --bump patch
+          PUSU_BROKER_MACRO_VERSION=$(cargo pkgid | sed 's/.*#//')
+          echo "version=$PUSU_BROKER_MACRO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish pusu_broker_macro to crates.io
+        working-directory: ./macros/pusu_broker_macro
+        run: cargo publish --allow-dirty
+
+      - name: Bump pusu_consumer_macro version
+        id: pusu_consumer_macro_version
+        working-directory: ./macros/pusu_consumer_macro
+        run: |
+          cargo set-version --bump patch
+          PUSU_CONSUMER_MACRO_VERSION=$(cargo pkgid | sed 's/.*#//')
+          echo "version=$PUSU_CONSUMER_MACRO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish pusu_consumer_macro to crates.io
+        working-directory: ./macros/pusu_consumer_macro
+        run: cargo publish --allow-dirty
+
+      - name: Bump pusu_producer_macro version
+        id: pusu_producer_macro_version
+        working-directory: ./macros/pusu_producer_macro
+        run: |
+          cargo set-version --bump patch
+          PUSU_PRODUCER_MACRO_VERSION=$(cargo pkgid | sed 's/.*#//')
+          echo "version=$PUSU_PRODUCER_MACRO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish pusu_producer_macro to crates.io
+        working-directory: ./macros/pusu_producer_macro
+        run: cargo publish --allow-dirty
+      
+      - name: Wait for crates.io indexing crates
+        run: sleep 60
+
+      - name: Update dependencies version
+        env:
+          PUSU_BROKER_MACRO_VERSION: ${{ steps.pusu_broker_macro_version.outputs.version }}
+          PUSU_CONSUMER_MACRO_VERSION: ${{ steps.pusu_consumer_macro_version.outputs.version }}
+          PUSU_PRODUCER_MACRO_VERSION: ${{ steps.pusu_producer_macro_version.outputs.version }}
+        run: |
+          sed -i "s/pusu_broker_macro = { version = \"[^\"]*\"/pusu_broker_macro = { version = \"$PUSU_BROKER_MACRO_VERSION\"/" Cargo.toml
+          sed -i "s/pusu_consumer_macro = { version = \"[^\"]*\"/pusu_consumer_macro = { version = \"$PUSU_CONSUMER_MACRO_VERSION\"/" Cargo.toml
+          sed -i "s/pusu_producer_macro = { version = \"[^\"]*\"/pusu_producer_macro = { version = \"$PUSU_PRODUCER_MACRO_VERSION\"/" Cargo.toml
+
+      - name: Bump version
         id: version
         run: |
           cargo set-version --bump patch
@@ -38,15 +89,9 @@ jobs:
 
       - name: Commit
         run: |
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock macros/*/Cargo.toml macros/*/Cargo.lock
           git commit -m "Release version ${{ steps.version.outputs.tag }}"
           git tag "${{ steps.version.outputs.tag }}"
-
-      - name: Login to crates.io
-        run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
-
-      - name: Publish to crates.io
-        run: cargo publish --dry-run
         
       - name: Publish to crates.io
         run: cargo publish
