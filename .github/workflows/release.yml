@@ -36,6 +36,12 @@ jobs:
           TAG_NAME=$(cargo pkgid | sed 's/.*#//')
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
 
+      - name: Commit
+        run: |
+          git add Cargo.toml Cargo.lock
+          git commit -m "Release version ${{ steps.version.outputs.tag }}"
+          git tag "${{ steps.version.outputs.tag }}"
+
       - name: Login to crates.io
         run: echo ${{ secrets.CRATES_IO_API_TOKEN }} | cargo login
 
@@ -45,12 +51,8 @@ jobs:
       - name: Publish to crates.io
         run: cargo publish
 
-      - name: Commit and push
-        run: |
-          git add Cargo.toml Cargo.lock
-          git commit -m "Release version ${{ steps.version.outputs.tag }}"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push --tags origin main
+      - name: Push tag
+        run: git push --tags origin main
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
