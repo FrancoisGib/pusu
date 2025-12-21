@@ -6,8 +6,9 @@ use std::{
 
 use anyhow::Result;
 use pusu::{
+    config::FromConfig,
     consumer::{Consumer, consumer},
-    producer::{ReceiverDispatch, producer},
+    producer::producer,
 };
 use serde::{Deserialize, Serialize};
 
@@ -75,13 +76,7 @@ fn main() -> Result<()> {
 
     sleep(Duration::from_millis(100));
 
-    let mut producer = MyProducer::new();
-    let id = 1;
-    let addr = "localhost:8080";
-
-    producer.add_receiver(MyProducerTopic::User, id, addr);
-    producer.add_receiver(MyProducerTopic::Book, id, addr);
-    producer.add_receiver(MyProducerTopic::Count, id, addr);
+    let mut producer = MyProducer::from_config("Config.yaml")?;
 
     for _ in 0..1000 {
         producer.produce_user(User {
@@ -96,5 +91,6 @@ fn main() -> Result<()> {
     }
 
     handle.join().unwrap();
+
     Ok(())
 }

@@ -41,19 +41,18 @@ impl<T: Serialize> Receiver<T> {
     }
 
     pub fn send(&self, topic: &str, payload: &T) -> Result<()> {
-        if let Ok(mut stream) = TcpStream::connect(&self.addr) {
-            let mut buf = Vec::new();
-            let topic_bytes = topic.as_bytes();
+        let mut stream = TcpStream::connect(&self.addr)?;
 
-            buf.extend(&(topic_bytes.len() as u16).to_be_bytes());
-            buf.extend(topic_bytes);
+        let topic_bytes = topic.as_bytes();
+        let payload_bytes = postcard::to_stdvec(payload)?;
 
-            let payload_bytes = postcard::to_stdvec(payload)?;
-            buf.extend(&(payload_bytes.len() as u32).to_be_bytes());
-            buf.extend(payload_bytes);
+        let topic_len = (topic_bytes.len() as u16).to_be_bytes();
+        let payload_len = (payload_bytes.len() as u32).to_be_bytes();
 
-            stream.write_all(&buf)?;
-        }
+        stream.write_all(&topic_len)?;
+        stream.write_all(topic_bytes)?;
+        stream.write_all(&payload_len)?;
+        stream.write_all(&payload_bytes)?;
         Ok(())
     }
 }

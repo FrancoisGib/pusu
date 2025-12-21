@@ -96,8 +96,7 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let enum_attrs = vec![
-        parse_quote! {
-        #[derive(strum::EnumString)]},
+        parse_quote! {#[derive(strum::EnumString, serde::Deserialize, Hash, PartialEq, Eq, Copy, Clone)]},
         parse_quote! {#[strum(serialize_all = "snake_case")]},
     ];
 
@@ -142,6 +141,8 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        impl<'de> pusu::config::FromConfig<'de, #enum_ident> for #struct_name {}
     };
 
     let expanded = quote! {
