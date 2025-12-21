@@ -27,7 +27,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut deserialize_switch = Vec::new();
     let mut enum_variants = Punctuated::<Variant, Comma>::new();
 
-    let enum_name = format!("{}Topic", struct_name.to_string());
+    let enum_name = format!("{}Topic", struct_name);
     let enum_ident = Ident::new(&enum_name, Span::call_site());
 
     for field in fields {
@@ -36,27 +36,25 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let mut state_ident = None;
 
         for attr in &field.attrs {
-            if attr.path().is_ident("topic") {
-                if let Meta::List(meta) = &attr.meta {
-                    if let Ok(lit) = parse2::<LitStr>(meta.tokens.clone()) {
-                        handler_ident = Some((Ident::new(&lit.value(), lit.span()), &field.ty));
-                    }
-                }
+            if attr.path().is_ident("topic")
+                && let Meta::List(meta) = &attr.meta
+                && let Ok(lit) = parse2::<LitStr>(meta.tokens.clone())
+            {
+                handler_ident = Some((Ident::new(&lit.value(), lit.span()), &field.ty));
             }
 
-            if attr.path().is_ident("state") {
-                if let Meta::List(meta) = &attr.meta {
-                    if let Ok(lit) = parse2::<LitStr>(meta.tokens.clone()) {
-                        state_ident = Some(Ident::new(&lit.value(), lit.span()));
-                    }
-                }
+            if attr.path().is_ident("state")
+                && let Meta::List(meta) = &attr.meta
+                && let Ok(lit) = parse2::<LitStr>(meta.tokens.clone())
+            {
+                state_ident = Some(Ident::new(&lit.value(), lit.span()));
             }
         }
 
         if let Some((handler, ty)) = handler_ident {
             let consume_name = Ident::new(&format!("consume_{}", name), name.span());
 
-            let is_unit_type = is_unit(&ty);
+            let is_unit_type = is_unit(ty);
 
             let params = if is_unit_type {
                 quote! { &self }

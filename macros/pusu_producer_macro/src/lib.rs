@@ -27,7 +27,7 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut dispatcher_switches = Vec::new();
     let mut enum_variants = Punctuated::<Variant, Comma>::new();
 
-    let enum_name = format!("{}Topic", struct_name.to_string());
+    let enum_name = format!("{}Topic", struct_name);
     let enum_ident = Ident::new(&enum_name, Span::call_site());
 
     for field in fields {
@@ -75,7 +75,7 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         let brokers_type: Type = syn::parse_str(&format!(
             "pusu::producer::Receivers<{}>",
-            ty.to_token_stream().to_string()
+            ty.to_token_stream()
         ))
         .unwrap();
 
