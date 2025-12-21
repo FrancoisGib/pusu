@@ -1,11 +1,8 @@
-[workspace]
-members = ["macros/*"]
-
 [package]
 name = "pusu"
 version = "0.1.6"
 edition = "2024"
-description = "High-performance, fully static, event-driven architecture for Rust services"
+description = "High-performance, fully static, event-driven framework for Rust services"
 license = "MIT"
 
 [dependencies]
@@ -23,3 +20,6 @@ default = ["broker", "consumer", "producer"]
 broker = []
 consumer = []
 producer = []
+
+[workspace]
+members = ["macros/*"]
