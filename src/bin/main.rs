@@ -76,7 +76,7 @@ fn main() -> Result<()> {
 
     sleep(Duration::from_millis(100));
 
-    let mut producer = MyProducer::from_config("Config.yaml")?;
+    let mut producer = MyProducer::from_config("examples/Config.yaml")?;
 
     for _ in 0..1000 {
         producer.produce_user(User {

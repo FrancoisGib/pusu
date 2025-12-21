@@ -16,6 +16,7 @@ I'm doing this project mostly to learn proc macros and also because I wanted to 
 For now, producers can send messages to registered consumers, the initialization methods, will be improved in the future.
 
 [Example](src/bin/main.rs)
+[Config example](examples/Config.yaml)
 ```rs
 struct AppState {
     counter: u64,
@@ -85,9 +86,7 @@ fn main() -> Result<()> {
     producer.add_receiver(MyProducerTopic::Book, id, addr);
     producer.add_receiver(MyProducerTopic::Count, id, addr);
     // or
-    producer.user.add_receiver(id, addr);
-    producer.book.add_receiver(id, addr);
-    producer.count.add_receiver(id, addr);
+    let mut producer = MyProducer::from_config("examples/Config.yaml")?;
     
 
     producer.produce_user(User { username: "Username".to_string(), age: 25 })?;
@@ -103,4 +102,3 @@ fn main() -> Result<()> {
 - Fault tolerance and replication on brokers (with abstraction on pub sub sides)
 - Logging for debugging purpose
 - Async runtime with tokio, for now it is an os threads scheduling for projects without tokio
-- Configuration with yaml or toml format to not have to add receivers by hand and configure the runtime.
