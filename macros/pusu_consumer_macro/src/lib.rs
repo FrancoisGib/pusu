@@ -1,10 +1,14 @@
 extern crate proc_macro;
 
+use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
 use syn::{
-    Fields, FieldsNamed, Ident, ItemStruct, LitStr, Meta, Type, TypeTuple, parse_macro_input,
-    parse2, punctuated::Punctuated,
+    Fields, FieldsNamed, Ident, ItemStruct, LitStr, Meta, Type, TypeTuple, Variant, Visibility,
+    parse_macro_input, parse_quote, parse2,
+    punctuated::Punctuated,
+    token::{Comma, Enum},
 };
 
 #[proc_macro_attribute]
@@ -21,6 +25,10 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut consume_methods = Vec::new();
     let mut cleaned_fields = Punctuated::new();
     let mut deserialize_switch = Vec::new();
+    let mut enum_variants = Punctuated::<Variant, Comma>::new();
+
+    let enum_name = format!("{}Topic", struct_name.to_string());
+    let enum_ident = Ident::new(&enum_name, Span::call_site());
 
     for field in fields {
         let name = field.ident.as_ref().unwrap();
@@ -76,8 +84,18 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             };
 
-            let lit = LitStr::new(&name.to_string(), name.span());
-            let lit_value = lit.value();
+            let topic_lit = LitStr::new(&name.to_string(), name.span());
+            let topic_str = topic_lit.value();
+
+            let variant_ident = Ident::new(&topic_str.to_case(Case::Pascal), Span::call_site());
+            let enum_variant = Variant {
+                attrs: Vec::new(),
+                ident: variant_ident.clone(),
+                fields: Fields::Unit,
+                discriminant: None,
+            };
+
+            enum_variants.push(enum_variant);
 
             let switch_stmt = if !is_unit_type {
                 quote! {
@@ -88,7 +106,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             deserialize_switch.push(quote! {
-                #lit_value => {
+                #enum_ident::#variant_ident => {
                     #switch_stmt
                 }
             });
@@ -99,6 +117,26 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
             cleaned_fields.push(field.clone());
         }
     }
+
+    let attrs = vec![
+        parse_quote! {
+        #[derive(strum::EnumString)]},
+        parse_quote! {#[strum(serialize_all = "snake_case")]},
+    ];
+
+    let dispatcher_enum = syn::ItemEnum {
+        attrs,
+        vis: Visibility::Inherited,
+        enum_token: Enum {
+            span: Span::call_site(),
+        },
+        ident: enum_ident.clone(),
+        generics: Default::default(),
+        brace_token: syn::token::Brace {
+            ..Default::default()
+        },
+        variants: enum_variants,
+    };
 
     let output_struct = ItemStruct {
         attrs: input.attrs,
@@ -113,13 +151,9 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         semi_token: input.semi_token,
     };
 
-    deserialize_switch.push(quote! {
-        _ => anyhow::bail!("Topic not found"),
-    });
-
     let dispatcher = quote! {
-        impl pusu::consumer::Consumer for #struct_name {
-            fn dispatch(&self, topic: &str, payload_bytes: &[u8]) -> anyhow::Result<()> {
+        impl pusu::consumer::Consumer<#enum_ident> for #struct_name {
+            fn dispatch(&self, topic: #enum_ident, payload_bytes: &[u8]) -> anyhow::Result<()> {
                 match topic {
                     #(#deserialize_switch)*
                 }
@@ -129,6 +163,8 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
+        #dispatcher_enum
+
         #output_struct
 
         #dispatcher

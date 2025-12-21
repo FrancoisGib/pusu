@@ -1,6 +1,7 @@
 use std::{
     io::Read,
     net::{TcpListener, TcpStream},
+    str::FromStr,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -9,11 +10,11 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 pub use pusu_consumer_macro::consumer;
 use signal_hook::{consts::SIGINT, iterator::Signals};
 
-pub trait Consumer: Sync + Send + Sized + 'static {
+pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
     fn run(self, port: u16) -> Result<()> {
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port))?;
         listener.set_nonblocking(true)?;
@@ -149,10 +150,12 @@ pub trait Consumer: Sync + Send + Sized + 'static {
             );
         }
 
-        let payload_bytes = &buf[payload_start + 4..payload_start + 4 + payload_len];
+        let topic_variant =
+            T::from_str(topic).map_err(|_| anyhow!("Error parsing str to topic enum variant"))?;
 
-        self.dispatch(topic, payload_bytes)
+        let payload_bytes = &buf[payload_start + 4..payload_start + 4 + payload_len];
+        self.dispatch(topic_variant, payload_bytes)
     }
 
-    fn dispatch(&self, topic: &str, payload: &[u8]) -> Result<()>;
+    fn dispatch(&self, topic: T, payload: &[u8]) -> Result<()>;
 }

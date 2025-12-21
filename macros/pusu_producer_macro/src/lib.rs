@@ -95,8 +95,14 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         named: map_fields,
     });
 
+    let enum_attrs = vec![
+        parse_quote! {
+        #[derive(strum::EnumString)]},
+        parse_quote! {#[strum(serialize_all = "snake_case")]},
+    ];
+
     let dispatcher_enum = syn::ItemEnum {
-        attrs: vec![parse_quote!(#[derive(strum::EnumString)])],
+        attrs: enum_attrs,
         vis: Visibility::Inherited,
         enum_token: Enum {
             span: Span::call_site(),
