@@ -1,9 +1,13 @@
 use std::{
-    io::Read, net::{SocketAddr, TcpListener, TcpStream}, str::FromStr, sync::{
+    io::Read,
+    net::{SocketAddr, TcpListener, TcpStream},
+    str::FromStr,
+    sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc::{Sender, channel},
-    }, thread::{self, JoinHandle}
+    },
+    thread::{self, JoinHandle},
 };
 
 pub use pusu_consumer_macro::consumer;
@@ -122,21 +126,23 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
                 println!("before worker");
                 let response = match self.accept(&stream) {
                     Ok(_) => Some(MessageStatus::Ack),
-                    Err(err) => {
-                        match err {
-                            ConsumerError::InvalidMessage(message_status_error) => Some(message_status_error.into()),
-                            _ => {
-                                eprintln!("{}", err);
-                                None
-                            },
+                    Err(err) => match err {
+                        ConsumerError::InvalidMessage(message_status_error) => {
+                            Some(message_status_error.into())
                         }
-                    }
+                        _ => {
+                            eprintln!("{}", err);
+                            None
+                        }
+                    },
                 };
 
                 println!("icic worker");
 
                 if let Some(status) = response {
-                    let _ = self.write_response(&mut stream, status).inspect_err(|err| eprintln!("{}", err));
+                    let _ = self
+                        .write_response(&mut stream, status)
+                        .inspect_err(|err| eprintln!("{}", err));
                 }
 
                 load_counter.fetch_sub(1, Ordering::Relaxed);
@@ -162,7 +168,6 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
         let mut buf = Vec::new();
         println!("before read accept");
         buf_reader.read_to_end(&mut buf)?;
-
 
         if buf.len() < 2 {
             bail!(ConsumerError::InvalidMessageFormat(

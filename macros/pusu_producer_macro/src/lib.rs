@@ -1,10 +1,15 @@
 extern crate proc_macro;
 
 use convert_case::{Case, Casing};
-use proc_macro::{TokenStream};
+use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_quote, Field, Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, Type, Variant, Visibility, parse_macro_input, punctuated::Punctuated, token::{Brace, Comma, Enum}};
+use syn::{
+    Field, Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, Type, Variant, Visibility,
+    parse_macro_input, parse_quote,
+    punctuated::Punctuated,
+    token::{Brace, Comma, Enum},
+};
 
 #[proc_macro_attribute]
 pub fn producer(_attrs: TokenStream, input: TokenStream) -> TokenStream {
@@ -28,9 +33,9 @@ pub fn producer(_attrs: TokenStream, input: TokenStream) -> TokenStream {
 
         for attr in field.attrs.clone() {
             // if attr.path().is_ident("topic") {
-                // is_topic = true;
+            // is_topic = true;
             // } else {
-                field_attrs.push(attr);
+            field_attrs.push(attr);
             // }
         }
 
@@ -44,16 +49,27 @@ pub fn producer(_attrs: TokenStream, input: TokenStream) -> TokenStream {
         };
 
         // if is_topic {
-            topic_fields.push(new_field.clone());
+        topic_fields.push(new_field.clone());
         // } else {
-            // struct_fields.push(new_field);
+        // struct_fields.push(new_field);
         // }
-
     }
 
-    let enum_variants: Vec<Ident> = topic_fields.iter().map(|field| {
-        Ident::new(&field.ident.as_ref().cloned().unwrap().to_string().to_case(Case::Pascal), Span::call_site())
-    }).collect();
+    let enum_variants: Vec<Ident> = topic_fields
+        .iter()
+        .map(|field| {
+            Ident::new(
+                &field
+                    .ident
+                    .as_ref()
+                    .cloned()
+                    .unwrap()
+                    .to_string()
+                    .to_case(Case::Pascal),
+                Span::call_site(),
+            )
+        })
+        .collect();
 
     let output_enum = generate_enum(struct_name, enum_variants);
     let enum_name = &output_enum.ident;
@@ -106,7 +122,6 @@ pub fn producer(_attrs: TokenStream, input: TokenStream) -> TokenStream {
         fields: output_struct_fields,
         semi_token: input.semi_token,
     };
-
 
     let expanded = quote! {
         #output_struct
@@ -167,14 +182,15 @@ fn generate_enum(struct_name: &Ident, variants_ident: Vec<Ident>) -> ItemEnum {
     let enum_name = format!("{}Topic", struct_name);
     let enum_ident = Ident::new(&enum_name, Span::call_site());
 
-    let variants = variants_ident.into_iter().map(|variant_ident| {
-        Variant {
+    let variants = variants_ident
+        .into_iter()
+        .map(|variant_ident| Variant {
             attrs: Vec::new(),
             ident: variant_ident,
             fields: Fields::Unit,
             discriminant: None,
-        }
-    }).collect();
+        })
+        .collect();
 
     let attrs = vec![
         parse_quote! {#[derive(strum::EnumString, strum::Display, serde::Serialize, serde::Deserialize, Debug, Hash, PartialEq, Eq, Copy, Clone)]},

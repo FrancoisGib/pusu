@@ -58,7 +58,9 @@ where
     let settings = C::builder()
         .add_source(File::with_name(filename).format(format))
         .build()?;
-    settings.try_deserialize().map(|config_option: ProducerConfigOption<T>| config_option.into())
+    settings
+        .try_deserialize()
+        .map(|config_option: ProducerConfigOption<T>| config_option.into())
 }
 
 pub fn get_file_format(filename: &str) -> Result<FileFormat> {
@@ -85,10 +87,18 @@ pub struct ReceiversConfig<T> {
 
 pub trait FromConfig<'de, T>
 where
-    T: TopicContainer + Debug + Copy + Eq + Hash + Serialize + Deserialize<'de> + Send + Sync + 'static,
+    T: TopicContainer
+        + Debug
+        + Copy
+        + Eq
+        + Hash
+        + Serialize
+        + Deserialize<'de>
+        + Send
+        + Sync
+        + 'static,
 {
-    fn from_config(filename: &str) -> Result<ProducerManager<T>>
-    {
+    fn from_config(filename: &str) -> Result<ProducerManager<T>> {
         let format = get_file_format(filename)?;
         let config = load_config(filename, format)?;
         let manager = ProducerManager::new(config.id);
@@ -99,7 +109,9 @@ where
     }
 }
 
-impl<T: Debug + Serialize + Copy + Hash + TopicContainer + Eq + Send + Sync + 'static> From<ProducerConfig<T>> for ProducerManager<T> {
+impl<T: Debug + Serialize + Copy + Hash + TopicContainer + Eq + Send + Sync + 'static>
+    From<ProducerConfig<T>> for ProducerManager<T>
+{
     fn from(config: ProducerConfig<T>) -> Self {
         let res = Self::new(config.id);
         for receiver in config.receivers {

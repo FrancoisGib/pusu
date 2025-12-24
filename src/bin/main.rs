@@ -86,8 +86,14 @@ fn main() -> Result<()> {
     // handle.join().unwrap();
 
     let mut producer = MyProducer::from_config("examples/Config.yaml").unwrap();
-    let user = User { age: 25, username: "user".into() };
-    let book = Book {author: "Frank Herbert".into(), name: "Dune".into()};
+    let user = User {
+        age: 25,
+        username: "user".into(),
+    };
+    let book = Book {
+        author: "Frank Herbert".into(),
+        name: "Dune".into(),
+    };
     producer.run()?;
     producer.user(&user)?;
     producer.book(&book)?;

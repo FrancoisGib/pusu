@@ -8,5 +8,5 @@ pub mod consumer;
 pub mod producer;
 
 pub mod message;
-mod utils;
 mod receiver;
+mod utils;

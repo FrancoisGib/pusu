@@ -1,9 +1,17 @@
 use crate::{bail, receiver::Receiver};
 use serde::Serialize;
 use std::{
-    collections::HashMap, fmt::Debug, hash::Hash, io::{ErrorKind, Write}, net::{SocketAddr, TcpListener, TcpStream}, sync::{
-    Mutex, atomic::{AtomicUsize, Ordering}, mpsc::{SendError, Sender}
-    }, thread::JoinHandle
+    collections::HashMap,
+    fmt::Debug,
+    hash::Hash,
+    io::{ErrorKind, Write},
+    net::{SocketAddr, TcpListener, TcpStream},
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{SendError, Sender},
+    },
+    thread::JoinHandle,
 };
 use thiserror::Error;
 
@@ -24,7 +32,7 @@ pub enum ProducerError {
     NoReceiverAvailable,
 
     #[error("Send error: {0}")]
-    SendError(#[from] SendError<()>)
+    SendError(#[from] SendError<()>),
 }
 
 type Result<T> = std::result::Result<T, ProducerError>;
@@ -62,14 +70,20 @@ pub struct ProducerManager<T> {
 }
 
 pub trait TopicContainer {
-    fn get_topics() -> Vec<Self> where Self: Sized {
+    fn get_topics() -> Vec<Self>
+    where
+        Self: Sized,
+    {
         Default::default()
     }
 }
 
 impl<T: TopicContainer + Eq + Hash> ProducerManager<T> {
     pub fn new(id: usize) -> Self {
-        let topics = T::get_topics().into_iter().map(|topic| (topic, TopicManager::new())).collect();
+        let topics = T::get_topics()
+            .into_iter()
+            .map(|topic| (topic, TopicManager::new()))
+            .collect();
         Self {
             count: AtomicUsize::new(0),
             _producer_id: id,
@@ -95,12 +109,12 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
                     // let (id, topic) = parse_message(&buf).unwrap();
                     // self._validate_message(topic, id);
                     continue;
-                },
+                }
                 Err(err) => {
                     if err.kind() != ErrorKind::WouldBlock {
                         eprintln!("Error accepting connection: {}", err);
                     }
-                },
+                }
             }
         }
         Ok(())
@@ -113,9 +127,7 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
 
         let message_id = self.generate_message_id();
 
-        let mut lock = self
-            .receivers
-            .lock().unwrap();
+        let mut lock = self.receivers.lock().unwrap();
         let receiver = lock
             .get_mut(&receiver_id)
             .ok_or(ProducerError::NoReceiverAvailable)?;
@@ -150,10 +162,20 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
 
     pub fn add_receiver(&self, id: usize, addr: SocketAddr, topics: Vec<T>) -> bool {
         for topic in topics {
-            self.topics.get(&topic).unwrap().receivers.lock().unwrap().push(id);
+            self.topics
+                .get(&topic)
+                .unwrap()
+                .receivers
+                .lock()
+                .unwrap()
+                .push(id);
         }
         let receiver = Receiver::new(id, addr);
-        self.receivers.lock().unwrap().insert(receiver.id, receiver).is_none()
+        self.receivers
+            .lock()
+            .unwrap()
+            .insert(receiver.id, receiver)
+            .is_none()
     }
 
     fn get_receiver_id_by_topic(&self, topic: T) -> Option<usize> {
@@ -217,7 +239,7 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
 
         let shard = shard_index(message_id);
         let mut map = topic_manager.messages_to_validate[shard].lock().unwrap();
-        
+
         println!("Message added to shard {} {:?}", shard, topic);
         map.entry(message_id).or_default().push(message);
     }
@@ -234,12 +256,8 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
 
     fn mark_receiver_down(&self, receiver_id: &usize) {
         let mut lock = self.receivers.lock().unwrap();
-        lock
-            .get_mut(receiver_id)
-            .unwrap()
-            .status = ReceiverStatus::Down;
+        lock.get_mut(receiver_id).unwrap().status = ReceiverStatus::Down;
     }
-
 }
 
 pub struct StateHandle {
@@ -249,7 +267,10 @@ pub struct StateHandle {
 
 impl StateHandle {
     pub fn new(sender: Sender<()>, handle: JoinHandle<()>) -> Self {
-        Self { sender, _handle: handle }
+        Self {
+            sender,
+            _handle: handle,
+        }
     }
 
     pub fn close(self) -> Result<()> {

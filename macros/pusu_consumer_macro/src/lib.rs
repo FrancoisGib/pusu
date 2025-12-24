@@ -5,7 +5,10 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
-    Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, LitStr, Meta, Type, TypeTuple, Variant, Visibility, parse_macro_input, parse_quote, parse2, punctuated::Punctuated, token::{Brace, Comma, Enum}
+    Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, LitStr, Meta, Type, TypeTuple, Variant,
+    Visibility, parse_macro_input, parse_quote, parse2,
+    punctuated::Punctuated,
+    token::{Brace, Comma, Enum},
 };
 
 #[proc_macro_attribute]
