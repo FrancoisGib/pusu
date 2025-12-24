@@ -1,9 +1,8 @@
+id: 1
 receivers:
-  - id: 1
-    address: 127.0.0.1
-    port: 8080
+  - id: 2
+    addr: 127.0.0.1:8081
     topics:
       - user
       - book
       - count
-      

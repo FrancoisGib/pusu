@@ -1,19 +1,14 @@
 extern crate proc_macro;
 
-use convert_case::Casing;
-use proc_macro::TokenStream;
+use convert_case::{Case, Casing};
+use proc_macro::{TokenStream};
 use proc_macro2::Span;
-use quote::{ToTokens, quote};
-use syn::{
-    Field, Fields, FieldsNamed, Ident, ItemStruct, LitStr, Type, TypeTuple, Variant, Visibility,
-    parse_macro_input, parse_quote,
-    punctuated::Punctuated,
-    token::{Brace, Comma, Enum},
-};
+use quote::quote;
+use syn::{parse_quote, Field, Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, Type, Variant, Visibility, parse_macro_input, punctuated::Punctuated, token::{Brace, Comma, Enum}};
 
 #[proc_macro_attribute]
-pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemStruct);
+pub fn producer(_attrs: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemStruct);
     let struct_name = &input.ident;
 
     let fields = if let Fields::Named(f) = &input.fields {
@@ -22,86 +17,172 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Producer macro only supports named fields");
     };
 
-    let mut produce_methods = Vec::new();
-    let mut map_fields = Punctuated::new();
-    let mut dispatcher_switches = Vec::new();
-    let mut enum_variants = Punctuated::<Variant, Comma>::new();
-
-    let enum_name = format!("{}Topic", struct_name);
-    let enum_ident = Ident::new(&enum_name, Span::call_site());
+    let mut topic_fields = Vec::new();
+    let mut struct_fields = Punctuated::<Field, Comma>::new();
 
     for field in fields {
-        let name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
 
-        let produce_name = Ident::new(&format!("produce_{}", name), name.span());
+        // let mut is_topic = false;
+        let mut field_attrs = Vec::new();
 
-        let topic_lit = LitStr::new(&name.to_string(), name.span());
-        let topic_str = topic_lit.value();
+        for attr in field.attrs.clone() {
+            // if attr.path().is_ident("topic") {
+                // is_topic = true;
+            // } else {
+                field_attrs.push(attr);
+            // }
+        }
 
-        let (params_tokens, value_tokens) = if is_unit(ty) {
-            (quote! { #topic_str, &() }, quote! {&mut self})
-        } else {
-            (
-                quote! { #topic_str, &value },
-                quote! {&mut self, value: #ty},
-            )
-        };
-
-        let produce_method = quote! {
-            fn #produce_name(#value_tokens) -> anyhow::Result<()> {
-                self.#name.send(#params_tokens)
-            }
-        };
-
-        let variant_ident = Ident::new(
-            &topic_str.to_case(convert_case::Case::Pascal),
-            Span::call_site(),
-        );
-        let enum_variant = Variant {
-            attrs: Vec::new(),
-            ident: variant_ident.clone(),
-            fields: Fields::Unit,
-            discriminant: None,
-        };
-
-        let dispatcher_switch = quote! {
-            #enum_ident::#variant_ident => self.#name.add_receiver(id, addr),
-        };
-
-        produce_methods.push(produce_method);
-        dispatcher_switches.push(dispatcher_switch);
-        enum_variants.push(enum_variant);
-
-        let brokers_type: Type = syn::parse_str(&format!(
-            "pusu::producer::Receivers<{}>",
-            ty.to_token_stream()
-        ))
-        .unwrap();
-
-        let map_field = Field {
-            attrs: Vec::new(),
+        let new_field = Field {
+            attrs: field_attrs,
             vis: Visibility::Inherited,
             mutability: syn::FieldMutability::None,
             ident: field.ident.clone(),
             colon_token: None,
-            ty: brokers_type,
+            ty: ty.clone(),
         };
-        map_fields.push(map_field);
+
+        // if is_topic {
+            topic_fields.push(new_field.clone());
+        // } else {
+            // struct_fields.push(new_field);
+        // }
+
     }
 
-    let map_fields = Fields::Named(FieldsNamed {
-        brace_token: Default::default(),
-        named: map_fields,
+    let enum_variants: Vec<Ident> = topic_fields.iter().map(|field| {
+        Ident::new(&field.ident.as_ref().cloned().unwrap().to_string().to_case(Case::Pascal), Span::call_site())
+    }).collect();
+
+    let output_enum = generate_enum(struct_name, enum_variants);
+    let enum_name = &output_enum.ident;
+    let mut init_topics_param = Vec::new();
+
+    let produce_functions = topic_fields.iter().enumerate().map(|(index, field)| {
+        let ident = field.ident.as_ref().unwrap();
+        let ty = &field.ty;
+        let enum_variant = &output_enum.variants[index].ident;
+        init_topics_param.push(quote! { #enum_name::#enum_variant });
+        quote! {
+            pub fn #ident(&self, payload: &#ty) -> Result<(), pusu::producer::ProducerError> {
+                self.manager.send(#enum_name::#enum_variant, payload)
+            }
+        }
     });
 
-    let enum_attrs = vec![
-        parse_quote! {#[derive(strum::EnumString, serde::Deserialize, Hash, PartialEq, Eq, Copy, Clone)]},
+    let manager_field = Field {
+        attrs: Vec::new(),
+        vis: Visibility::Inherited,
+        mutability: syn::FieldMutability::None,
+        ident: Some(Ident::new("manager", Span::call_site())),
+        colon_token: None,
+        ty: Type::Verbatim(quote! {std::sync::Arc<pusu::producer::ProducerManager<#enum_name>>}),
+    };
+
+    let state_handle_field = Field {
+        attrs: Vec::new(),
+        vis: Visibility::Inherited,
+        mutability: syn::FieldMutability::None,
+        ident: Some(Ident::new("state_handle", Span::call_site())),
+        colon_token: None,
+        ty: Type::Verbatim(quote! {Option<pusu::producer::StateHandle>}),
+    };
+
+    struct_fields.push(manager_field);
+    struct_fields.push(state_handle_field);
+
+    let output_struct_fields = Fields::Named(FieldsNamed {
+        brace_token: Default::default(),
+        named: struct_fields,
+    });
+
+    let output_struct = ItemStruct {
+        attrs: input.attrs.clone(),
+        vis: input.vis,
+        struct_token: input.struct_token,
+        ident: input.ident.clone(),
+        generics: input.generics,
+        fields: output_struct_fields,
+        semi_token: input.semi_token,
+    };
+
+
+    let expanded = quote! {
+        #output_struct
+
+        impl #struct_name {
+            fn new(id: usize) -> Self {
+                Self { manager: std::sync::Arc::new(pusu::producer::ProducerManager::new(id)), state_handle: Default::default() }
+            }
+        }
+
+        impl #struct_name {
+            #(#produce_functions)*
+
+            pub fn from_config(filename: &str) -> Result<Self> where Self: Sized {
+                let format = pusu::producer::config::get_file_format(filename)?;
+                let config = pusu::producer::config::load_config(filename, format)?;
+                let manager = pusu::producer::ProducerManager::from(config);
+                let res = Self { manager: std::sync::Arc::new(manager), state_handle: Default::default() };
+                Ok(res)
+            }
+
+            pub fn run(&mut self) -> Result<()> {
+                let manager_arc = self.manager.clone();
+                let (tx, rx) = std::sync::mpsc::channel();
+                let handle = std::thread::spawn(move || {
+                    let _ = manager_arc.run(rx);
+                });
+                let state_handle = pusu::producer::StateHandle::new(tx, handle);
+                self.state_handle = Some(state_handle);
+                Ok(())
+            }
+
+            pub fn close(&mut self) -> Result<()> {
+                if let Some(handle) = self.state_handle.take() {
+                    handle.close()?;
+                }
+                Ok(())
+            }
+
+            pub fn add_receiver(&mut self, id: usize, addr: std::net::SocketAddr, topics: Vec<#enum_name>) {
+                self.manager.add_receiver(id, addr, topics);
+            }
+        }
+
+        impl pusu::producer::TopicContainer for #enum_name {
+            fn get_topics() -> Vec<Self> {
+                vec![#(#init_topics_param),*]
+            }
+        }
+
+        #output_enum
+    };
+
+    TokenStream::from(expanded)
+}
+
+fn generate_enum(struct_name: &Ident, variants_ident: Vec<Ident>) -> ItemEnum {
+    let enum_name = format!("{}Topic", struct_name);
+    let enum_ident = Ident::new(&enum_name, Span::call_site());
+
+    let variants = variants_ident.into_iter().map(|variant_ident| {
+        Variant {
+            attrs: Vec::new(),
+            ident: variant_ident,
+            fields: Fields::Unit,
+            discriminant: None,
+        }
+    }).collect();
+
+    let attrs = vec![
+        parse_quote! {#[derive(strum::EnumString, strum::Display, serde::Serialize, serde::Deserialize, Debug, Hash, PartialEq, Eq, Copy, Clone)]},
         parse_quote! {#[strum(serialize_all = "snake_case")]},
     ];
 
-    let dispatcher_enum = syn::ItemEnum {
-        attrs: enum_attrs,
+    ItemEnum {
+        attrs,
         vis: Visibility::Inherited,
         enum_token: Enum {
             span: Span::call_site(),
@@ -111,60 +192,41 @@ pub fn producer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         brace_token: Brace {
             ..Default::default()
         },
-        variants: enum_variants,
-    };
-
-    let mut attrs = input.attrs.clone();
-    attrs.push(parse_quote!(#[derive(Default)]));
-
-    let output_struct = ItemStruct {
-        attrs,
-        vis: input.vis,
-        struct_token: input.struct_token,
-        ident: input.ident.clone(),
-        generics: input.generics,
-        fields: map_fields,
-        semi_token: input.semi_token,
-    };
-
-    let new_method = quote! {
-        pub fn new() -> Self {
-            Self::default()
-        }
-    };
-
-    let receiver_dispatch_trait = quote! {
-        impl pusu::producer::ReceiverDispatch<#enum_ident> for #struct_name {
-            fn add_receiver(&mut self, topic: #enum_ident, id: usize, addr: &str) {
-                match topic {
-                    #(#dispatcher_switches)*
-                }
-            }
-        }
-
-        impl<'de> pusu::config::FromConfig<'de, #enum_ident> for #struct_name {}
-    };
-
-    let expanded = quote! {
-        #dispatcher_enum
-
-        #output_struct
-
-        impl #struct_name {
-            #new_method
-
-            #(#produce_methods)*
-        }
-
-        #receiver_dispatch_trait
-    };
-
-    TokenStream::from(expanded)
-}
-
-fn is_unit(ty: &Type) -> bool {
-    match ty {
-        Type::Tuple(TypeTuple { elems, .. }) => elems.is_empty(),
-        _ => false,
+        variants,
     }
 }
+
+// fn is_unit(ty: &syn::Type) -> bool {
+//     matches!(ty, syn::Type::Tuple(t) if t.elems.is_empty())
+// }
+
+// fn extract_topic_inner_type(ty: &Type) -> Option<&Type> {
+//     match ty {
+//         Type::Path(type_path) => {
+//             let segment = type_path.path.segments.last()?;
+
+//             if segment.ident != "Topic" {
+//                 return None;
+//             }
+
+//             match &segment.arguments {
+//                 PathArguments::AngleBracketed(args) => {
+//                     if args.args.len() != 1 {
+//                         return None;
+//                     }
+
+//                     match args.args.first()? {
+//                         GenericArgument::Type(inner_ty) => Some(inner_ty),
+//                         _ => None,
+//                     }
+//                 }
+//                 _ => None,
+//             }
+//         }
+//         _ => None,
+//     }
+// }
+
+// fn is_topic(ty: &Type) -> bool {
+//     matches!(ty, Type::Path(type_path) if type_path.path.segments.last().map(|segment| segment.ident == "Topic").unwrap_or(false))
+// }

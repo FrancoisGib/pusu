@@ -7,4 +7,6 @@ pub mod consumer;
 #[cfg(feature = "producer")]
 pub mod producer;
 
-pub mod config;
+pub mod message;
+mod utils;
+mod receiver;

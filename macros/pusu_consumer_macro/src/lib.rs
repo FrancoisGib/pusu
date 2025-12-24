@@ -5,10 +5,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
-    Fields, FieldsNamed, Ident, ItemStruct, LitStr, Meta, Type, TypeTuple, Variant, Visibility,
-    parse_macro_input, parse_quote, parse2,
-    punctuated::Punctuated,
-    token::{Comma, Enum},
+    Fields, FieldsNamed, Ident, ItemEnum, ItemStruct, LitStr, Meta, Type, TypeTuple, Variant, Visibility, parse_macro_input, parse_quote, parse2, punctuated::Punctuated, token::{Brace, Comma, Enum}
 };
 
 #[proc_macro_attribute]
@@ -122,7 +119,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         parse_quote! {#[strum(serialize_all = "snake_case")]},
     ];
 
-    let dispatcher_enum = syn::ItemEnum {
+    let dispatcher_enum = ItemEnum {
         attrs,
         vis: Visibility::Inherited,
         enum_token: Enum {
@@ -130,7 +127,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
         },
         ident: enum_ident.clone(),
         generics: Default::default(),
-        brace_token: syn::token::Brace {
+        brace_token: Brace {
             ..Default::default()
         },
         variants: enum_variants,
@@ -151,7 +148,7 @@ pub fn consumer(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let dispatcher = quote! {
         impl pusu::consumer::Consumer<#enum_ident> for #struct_name {
-            fn dispatch(&self, topic: #enum_ident, payload_bytes: &[u8]) -> anyhow::Result<()> {
+            fn dispatch(&self, topic: #enum_ident, payload_bytes: &[u8]) -> std::result::Result<(), pusu::consumer::ConsumerError> {
                 match topic {
                     #(#deserialize_switch)*
                 }

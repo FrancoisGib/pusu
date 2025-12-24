@@ -1,18 +1,39 @@
 use std::{
-    io::Read,
-    net::{TcpListener, TcpStream},
-    str::FromStr,
-    sync::{
+    io::Read, net::{SocketAddr, TcpListener, TcpStream}, str::FromStr, sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc::{Sender, channel},
-    },
-    thread::{self, JoinHandle},
+    }, thread::{self, JoinHandle}
 };
 
-use anyhow::{Result, anyhow};
 pub use pusu_consumer_macro::consumer;
 use signal_hook::{consts::SIGINT, iterator::Signals};
+use thiserror::Error;
+
+use crate::{
+    bail,
+    message::{MessageStatus, MessageStatusError},
+};
+
+#[derive(Error, Debug)]
+pub enum ConsumerError {
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+
+    #[error("Invalid UTF-8 payload: {0}")]
+    InvalidUTF8Error(#[from] std::str::Utf8Error),
+
+    #[error("Invalid message format: {0}")]
+    InvalidMessageFormat(String),
+
+    #[error("Message status: {0}")]
+    InvalidMessage(#[from] MessageStatusError),
+
+    #[error("Binary conversion error: {0}")]
+    BinaryConversionError(#[from] postcard::Error),
+}
+
+type Result<T> = std::result::Result<T, ConsumerError>;
 
 pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
     fn run(self, port: u16) -> Result<()> {
@@ -20,8 +41,15 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
         listener.set_nonblocking(true)?;
         let nb_workers = 4;
 
+        let self_arc = Arc::new(self);
+
         let mut senders = Vec::with_capacity(nb_workers);
-        let mut handles = Vec::with_capacity(nb_workers);
+        // let mut validators = (0..nb_workers).map(|_| {
+        //     let consumer_clone = self_arc.clone();
+        //     consumer_clone.validator()
+        // }).collect();
+
+        let mut handles = Vec::with_capacity(nb_workers * 2);
 
         let load_counters: Vec<Arc<AtomicUsize>> = (0..nb_workers)
             .map(|_| Arc::new(AtomicUsize::new(0)))
@@ -29,11 +57,9 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
 
         let running = Arc::new(AtomicBool::new(true));
 
-        let self_arc = Arc::new(self);
-
-        for (worker_id, load_counter) in load_counters.iter().enumerate().take(nb_workers) {
+        for (_sender_id, load_counter) in load_counters.iter().enumerate().take(nb_workers) {
             let consumer_clone = self_arc.clone();
-            let (tx, handle) = consumer_clone.worker(worker_id, load_counter.clone());
+            let (tx, handle) = consumer_clone.worker(load_counter.clone());
             senders.push(tx);
             handles.push(handle);
         }
@@ -86,17 +112,31 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
 
     fn worker(
         self: Arc<Self>,
-        id: usize,
         load_counter: Arc<AtomicUsize>,
     ) -> (Sender<TcpStream>, JoinHandle<()>) {
         let (tx, rx) = channel::<TcpStream>();
 
         let handle = thread::spawn(move || {
-            while let Ok(stream) = rx.recv() {
+            while let Ok(mut stream) = rx.recv() {
                 load_counter.fetch_add(1, Ordering::Relaxed);
+                println!("before worker");
+                let response = match self.accept(&stream) {
+                    Ok(_) => Some(MessageStatus::Ack),
+                    Err(err) => {
+                        match err {
+                            ConsumerError::InvalidMessage(message_status_error) => Some(message_status_error.into()),
+                            _ => {
+                                eprintln!("{}", err);
+                                None
+                            },
+                        }
+                    }
+                };
 
-                if let Err(err) = self.accept(stream) {
-                    eprintln!("Error on worker {}: {}", id, err);
+                println!("icic worker");
+
+                if let Some(status) = response {
+                    let _ = self.write_response(&mut stream, status).inspect_err(|err| eprintln!("{}", err));
                 }
 
                 load_counter.fetch_sub(1, Ordering::Relaxed);
@@ -105,23 +145,39 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
         (tx, handle)
     }
 
-    fn accept(&self, stream: TcpStream) -> Result<()> {
+    fn validator(self: Arc<Self>) -> (Sender<(SocketAddr, MessageStatus)>, JoinHandle<()>) {
+        let (tx, rx) = channel::<(SocketAddr, MessageStatus)>();
+
+        let handle = thread::spawn(move || {
+            while let Ok((socket_addr, _status)) = rx.recv() {
+                let _stream = TcpStream::connect(socket_addr);
+            }
+        });
+
+        (tx, handle)
+    }
+
+    fn accept(&self, stream: &TcpStream) -> Result<()> {
         let mut buf_reader = std::io::BufReader::new(stream);
         let mut buf = Vec::new();
+        println!("before read accept");
         buf_reader.read_to_end(&mut buf)?;
 
+
         if buf.len() < 2 {
-            anyhow::bail!("Buffer too small: expected at least 2 bytes for topic length");
+            bail!(ConsumerError::InvalidMessageFormat(
+                "Buffer too small: expected at least 2 bytes for topic length".to_string(),
+            ));
         }
 
         let topic_len = u16::from_be_bytes([buf[0], buf[1]]) as usize;
 
         if buf.len() < 2 + topic_len {
-            anyhow::bail!(
+            bail!(ConsumerError::InvalidMessageFormat(format!(
                 "Buffer too small: expected {} bytes for topic, got {}",
                 2 + topic_len,
                 buf.len()
-            );
+            )));
         }
 
         let topic = std::str::from_utf8(&buf[2..2 + topic_len])?;
@@ -129,10 +185,10 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
         let payload_start = 2 + topic_len;
 
         if buf.len() < payload_start + 4 {
-            anyhow::bail!(
+            bail!(ConsumerError::InvalidMessageFormat(format!(
                 "Buffer too small: expected {} bytes for payload length",
                 payload_start + 4
-            );
+            )));
         }
 
         let payload_len = u32::from_be_bytes([
@@ -143,18 +199,26 @@ pub trait Consumer<T: FromStr>: Sync + Send + Sized + 'static {
         ]) as usize;
 
         if buf.len() < payload_start + 4 + payload_len {
-            anyhow::bail!(
+            bail!(ConsumerError::InvalidMessageFormat(format!(
                 "Buffer too small: expected {} bytes for payload, got {}",
                 payload_start + 4 + payload_len,
                 buf.len()
-            );
+            )));
         }
 
         let topic_variant =
-            T::from_str(topic).map_err(|_| anyhow!("Error parsing str to topic enum variant"))?;
+            T::from_str(topic).map_err(|_| MessageStatusError::UnknownTopic(topic.to_string()))?;
+
+        println!("ici after variant");
 
         let payload_bytes = &buf[payload_start + 4..payload_start + 4 + payload_len];
         self.dispatch(topic_variant, payload_bytes)
+    }
+
+    fn write_response(&self, stream: &mut self::TcpStream, status: MessageStatus) -> Result<()> {
+        println!("write {:?}", status);
+        postcard::to_io(&status, stream)?;
+        Ok(())
     }
 
     fn dispatch(&self, topic: T, payload: &[u8]) -> Result<()>;

@@ -470,6 +470,7 @@ dependencies = [
  "serde",
  "signal-hook",
  "strum",
+ "thiserror",
 ]
 
 [[package]]
