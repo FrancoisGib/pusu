@@ -48,8 +48,8 @@ pub struct TopicManager {
     messages_to_validate: Vec<Mutex<HashMap<usize, Vec<Vec<u8>>>>>,
 }
 
-impl TopicManager {
-    pub fn new() -> Self {
+impl Default for TopicManager {
+    fn default() -> Self {
         let mut shards = Vec::with_capacity(SHARD_COUNT);
         for _ in 0..SHARD_COUNT {
             shards.push(Mutex::new(HashMap::new()));
@@ -59,6 +59,12 @@ impl TopicManager {
             receivers: Default::default(),
             messages_to_validate: shards,
         }
+    }
+}
+
+impl TopicManager {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -179,12 +185,7 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
     }
 
     fn get_receiver_id_by_topic(&self, topic: T) -> Option<usize> {
-        let topic_manager = if let Some(topic_manager) = self.topics.get(&topic) {
-            topic_manager
-        } else {
-            return None;
-        };
-
+        let topic_manager = self.topics.get(&topic)?;
         topic_manager
             .receivers
             .lock()
@@ -192,7 +193,7 @@ impl<T: Serialize + Eq + Hash + Copy + Debug + Sync + Send + 'static> ProducerMa
             .iter()
             .find(|i| {
                 let lock = self.receivers.lock().unwrap();
-                let receiver = lock.get(&i).unwrap();
+                let receiver = lock.get(i).unwrap();
                 receiver.status == ReceiverStatus::Available
             })
             .copied()
